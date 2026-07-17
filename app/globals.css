@@ -1,0 +1,507 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f7f5;
+  --foreground: #111111;
+  --muted: #707070;
+  --line: #e7e3dc;
+  --panel: #ffffff;
+  --black: #111111;
+  --green: #138a42;
+  --red: #d13f38;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+}
+
+.login-screen,
+.app-shell {
+  min-height: 100vh;
+}
+
+.login-screen {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.login-panel,
+.matrix-panel,
+.side-panel,
+.transaction-modal {
+  background: var(--panel);
+  border: 1px solid rgba(17, 17, 17, 0.06);
+  box-shadow: 0 24px 70px rgba(17, 17, 17, 0.08);
+}
+
+.login-panel {
+  width: min(420px, 100%);
+  border-radius: 8px;
+  padding: 34px;
+}
+
+.login-panel h1,
+.topbar h1,
+.transaction-modal h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.login-panel h1 {
+  font-size: 38px;
+  line-height: 1;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.login-form,
+.transaction-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 28px;
+}
+
+label {
+  display: grid;
+  gap: 8px;
+  color: #2c2c2c;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfbfa;
+  color: var(--foreground);
+  outline: none;
+  padding: 12px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #111111;
+  box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.08);
+}
+
+.login-form button,
+.actions button,
+.axis-controls button,
+.transaction-form footer button,
+.floating-clear {
+  min-height: 42px;
+  border-radius: 8px;
+  background: var(--black);
+  color: #ffffff;
+  font-weight: 800;
+  box-shadow: 0 12px 24px rgba(17, 17, 17, 0.14);
+}
+
+.form-error {
+  margin: 0;
+  color: var(--red);
+  font-size: 13px;
+}
+
+.app-shell {
+  padding: 20px;
+}
+
+.dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 9fr) minmax(210px, 1fr);
+  gap: 16px;
+  min-height: calc(100vh - 40px);
+}
+
+.matrix-panel,
+.side-panel {
+  border-radius: 8px;
+}
+
+.matrix-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar h1 {
+  font-size: 30px;
+}
+
+.ghost-button,
+.icon-button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--foreground);
+  font-weight: 800;
+}
+
+.ghost-button {
+  min-height: 38px;
+  padding: 0 14px;
+}
+
+.date-matrix {
+  display: grid;
+  grid-auto-columns: minmax(72px, 1fr);
+  grid-auto-flow: column;
+  min-height: 0;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+}
+
+.date-column {
+  display: grid;
+  grid-template-rows: auto auto minmax(250px, 1fr);
+  align-items: stretch;
+  min-height: 460px;
+  border-right: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--foreground);
+  padding: 12px 8px;
+  text-align: center;
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+
+.date-column:first-child {
+  border-left: 1px solid var(--line);
+}
+
+.date-column:hover,
+.date-column.selected {
+  background: #f1f0ed;
+}
+
+.date-column.today {
+  box-shadow: inset 0 0 0 2px #111111;
+  z-index: 1;
+}
+
+.date-label {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.weekday {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 5px;
+}
+
+.candle-stack {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 5px;
+  min-height: 250px;
+  padding-top: 18px;
+}
+
+.candle {
+  display: block;
+  width: 16px;
+  min-height: 28px;
+  border-radius: 8px 8px 3px 3px;
+  box-shadow: 0 12px 18px rgba(17, 17, 17, 0.12);
+  transition: transform 140ms ease;
+}
+
+.candle:hover {
+  transform: translateY(-4px);
+}
+
+.candle.income {
+  background: linear-gradient(180deg, #1eba63, var(--green));
+}
+
+.candle.outcome {
+  background: linear-gradient(180deg, #f0655c, var(--red));
+}
+
+.axis-controls {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.axis-controls span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.axis-controls button {
+  padding: 0 18px;
+}
+
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 20px;
+}
+
+.side-panel h2 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.muted {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 16px 0;
+}
+
+.summary-grid span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.summary-grid strong {
+  margin-bottom: 8px;
+  font-size: 20px;
+}
+
+.positive {
+  color: var(--green);
+}
+
+.negative {
+  color: var(--red);
+}
+
+.actions,
+.filters {
+  display: grid;
+  gap: 10px;
+}
+
+.filters {
+  margin-top: auto;
+}
+
+.floating-clear {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 10;
+  min-width: 150px;
+  padding: 0 18px;
+  transform: translateX(-50%);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgba(17, 17, 17, 0.22);
+  padding: 20px;
+}
+
+.transaction-modal {
+  width: min(680px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  border-radius: 8px;
+  padding: 22px;
+}
+
+.transaction-modal header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+}
+
+.switch-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f6f5f2;
+}
+
+.switch-row button {
+  min-height: 42px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  font-weight: 800;
+}
+
+.switch-row button.active {
+  background: #111111;
+  color: #ffffff;
+}
+
+.amount-label input {
+  min-height: 66px;
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.no-end {
+  display: grid;
+  align-content: end;
+  min-height: 67px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  padding: 14px;
+}
+
+.transaction-form footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.transaction-form footer button {
+  min-width: 120px;
+  padding: 0 18px;
+}
+
+.transaction-form footer .danger-button {
+  background: #ffffff;
+  color: var(--red);
+  border: 1px solid rgba(209, 63, 56, 0.35);
+  box-shadow: none;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    padding: 12px;
+  }
+
+  .dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .date-column {
+    min-height: 390px;
+  }
+
+  .side-panel {
+    min-height: auto;
+  }
+
+  .filters {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .topbar,
+  .axis-controls,
+  .transaction-modal header,
+  .transaction-form footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .axis-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .login-panel,
+  .transaction-modal {
+    padding: 20px;
+  }
+}
