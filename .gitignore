@@ -40,3 +40,8 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+
+# local preview and Sites packaging artifacts
+.dev-server.*.log
+.sites-package-stage/
+*.tar.gz
