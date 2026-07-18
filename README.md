@@ -40,14 +40,20 @@ from auth.users
 where email = 'YOUR_ADMIN_EMAIL';
 ```
 
-6. Add these env vars in Hostinger:
+6. Import Sagi's existing local transactions:
+
+```sql
+-- Run the contents of supabase/import-local-transactions.sql
+```
+
+7. Add these env vars in Hostinger:
 
 ```txt
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 ```
 
-7. Redeploy.
+8. Redeploy.
 
 When Supabase env vars are present, transactions are saved in Supabase. When
 they are missing, the app falls back to browser localStorage.
