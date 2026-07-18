@@ -11,6 +11,7 @@ import {
   Plus,
   UserRound,
 } from "lucide-react";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 type TxType = "income" | "outcome";
 type TxField = "business" | "personal";
@@ -33,6 +34,25 @@ type Account = {
   username: string;
   email: string;
   password: string;
+  role: "admin" | "user";
+};
+
+type TransactionRow = {
+  id: string;
+  owner_id: string;
+  type: TxType;
+  amount: number;
+  field: TxField;
+  recurrence: Recurrence;
+  date: string;
+  end_date: string | null;
+  notes: string | null;
+};
+
+type ProfileRow = {
+  id: string;
+  username: string;
+  email: string;
   role: "admin" | "user";
 };
 
@@ -205,6 +225,42 @@ function getDayTooltip(date: string, transactions: Transaction[]) {
     .join("\n");
 }
 
+function rowToTransaction(row: TransactionRow): Transaction {
+  return {
+    id: row.id,
+    type: row.type,
+    amount: Number(row.amount),
+    field: row.field,
+    recurrence: row.recurrence,
+    date: row.date,
+    endDate: row.end_date,
+    notes: row.notes || "",
+  };
+}
+
+function transactionToRow(transaction: Omit<Transaction, "id">, ownerId: string) {
+  return {
+    owner_id: ownerId,
+    type: transaction.type,
+    amount: transaction.amount,
+    field: transaction.field,
+    recurrence: transaction.recurrence,
+    date: transaction.date,
+    end_date: transaction.endDate,
+    notes: transaction.notes,
+  };
+}
+
+function rowToAccount(row: ProfileRow): Account {
+  return {
+    id: row.id,
+    username: row.username,
+    email: row.email,
+    password: "",
+    role: row.role,
+  };
+}
+
 function DatePicker({
   label,
   value,
@@ -322,6 +378,7 @@ function DatePicker({
 }
 
 export default function Home() {
+  const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [users, setUsers] = useState<Account[]>([defaultAccount]);
@@ -365,49 +422,76 @@ export default function Home() {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedUsers = window.localStorage.getItem(USERS_KEY);
-    const storedAccount = window.localStorage.getItem(ACCOUNT_KEY);
-    const migratedAccount = storedAccount
-      ? { ...defaultAccount, ...JSON.parse(storedAccount), role: "admin" as const }
-      : defaultAccount;
-    const nextUsers: Account[] = storedUsers
-      ? JSON.parse(storedUsers)
-      : [migratedAccount];
-    const normalizedUsers = nextUsers.some((user) => user.username === "sagi")
-      ? nextUsers.map((user) =>
-          user.username === "sagi" ? { ...user, role: "admin" as const } : user,
-        )
-      : [defaultAccount, ...nextUsers];
-    const storedAuth = window.localStorage.getItem(AUTH_KEY);
-    const nextCurrentUser =
-      normalizedUsers.find((user) => user.id === storedAuth) ||
-      (storedAuth === "true"
-        ? normalizedUsers.find((user) => user.username === "sagi")
-        : null);
+    async function boot() {
+      if (isSupabaseConfigured && supabase) {
+        const { data } = await supabase.auth.getSession();
+        const authUser = data.session?.user;
 
-    setUsers(normalizedUsers);
-    if (nextCurrentUser) {
-      setCurrentUserId(nextCurrentUser.id);
-      setIsAuthenticated(true);
-      setAccountDraft((current) => ({
-        ...current,
-        username: nextCurrentUser.username,
-        email: nextCurrentUser.email,
-      }));
+        if (authUser) {
+          await loadSupabaseUser(authUser.id, authUser.email || "");
+          await loadSupabaseTransactions(authUser.id);
+          setIsAuthenticated(true);
+        }
+
+        setIsLoading(false);
+        return;
+      }
+
+      const storedUsers = window.localStorage.getItem(USERS_KEY);
+      const storedAccount = window.localStorage.getItem(ACCOUNT_KEY);
+      const migratedAccount = storedAccount
+        ? {
+            ...defaultAccount,
+            ...JSON.parse(storedAccount),
+            role: "admin" as const,
+          }
+        : defaultAccount;
+      const nextUsers: Account[] = storedUsers
+        ? JSON.parse(storedUsers)
+        : [migratedAccount];
+      const normalizedUsers = nextUsers.some((user) => user.username === "sagi")
+        ? nextUsers.map((user) =>
+            user.username === "sagi"
+              ? { ...user, role: "admin" as const }
+              : user,
+          )
+        : [defaultAccount, ...nextUsers];
+      const storedAuth = window.localStorage.getItem(AUTH_KEY);
+      const nextCurrentUser =
+        normalizedUsers.find((user) => user.id === storedAuth) ||
+        (storedAuth === "true"
+          ? normalizedUsers.find((user) => user.username === "sagi")
+          : null);
+
+      setUsers(normalizedUsers);
+      if (nextCurrentUser) {
+        setCurrentUserId(nextCurrentUser.id);
+        setIsAuthenticated(true);
+        setAccountDraft((current) => ({
+          ...current,
+          username: nextCurrentUser.username,
+          email: nextCurrentUser.email,
+        }));
+      }
+
+      const stored = window.localStorage.getItem(STORAGE_KEY);
+      setTransactions(stored ? JSON.parse(stored) : seedTransactions);
+      setIsLoading(false);
     }
 
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    setTransactions(stored ? JSON.parse(stored) : seedTransactions);
+    boot();
   }, []);
 
   useEffect(() => {
-    if (transactions.length) {
+    if (!isSupabaseConfigured && transactions.length) {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
     }
   }, [transactions]);
 
   useEffect(() => {
-    window.localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    if (!isSupabaseConfigured) {
+      window.localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    }
   }, [users]);
 
   const visibleDates = useMemo(
@@ -459,11 +543,99 @@ export default function Home() {
     users.find((user) => user.id === currentUserId) || defaultAccount;
   const isAdmin = currentUser.role === "admin";
 
-  function handleLogin(event: FormEvent<HTMLFormElement>) {
+  async function loadSupabaseUser(userId: string, email: string) {
+    if (!supabase) {
+      return;
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, username, email, role")
+      .eq("id", userId)
+      .maybeSingle<ProfileRow>();
+
+    const nextProfile =
+      profile ||
+      ({
+        id: userId,
+        username: email.split("@")[0] || "user",
+        email,
+        role: email.toLowerCase() === "sagi" ? "admin" : "user",
+      } satisfies ProfileRow);
+
+    if (!profile) {
+      await supabase.from("profiles").insert(nextProfile);
+    }
+
+    setCurrentUserId(nextProfile.id);
+    setUsers([rowToAccount(nextProfile)]);
+    setAccountDraft((current) => ({
+      ...current,
+      username: nextProfile.username,
+      email: nextProfile.email,
+      oldPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    }));
+
+    if (nextProfile.role === "admin") {
+      await loadSupabaseUsers();
+    }
+  }
+
+  async function loadSupabaseUsers() {
+    if (!supabase) {
+      return;
+    }
+
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, username, email, role")
+      .order("created_at", { ascending: true });
+
+    if (data) {
+      setUsers((data as ProfileRow[]).map(rowToAccount));
+    }
+  }
+
+  async function loadSupabaseTransactions(userId: string) {
+    if (!supabase) {
+      return;
+    }
+
+    const { data } = await supabase
+      .from("transactions")
+      .select("id, owner_id, type, amount, field, recurrence, date, end_date, notes")
+      .eq("owner_id", userId)
+      .order("date", { ascending: true });
+
+    setTransactions(data ? (data as TransactionRow[]).map(rowToTransaction) : []);
+  }
+
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const username = String(formData.get("username") || "");
     const password = String(formData.get("password") || "");
+
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: username,
+        password,
+      });
+
+      if (error || !data.user) {
+        setLoginError("Incorrect email or password.");
+        return;
+      }
+
+      await loadSupabaseUser(data.user.id, data.user.email || username);
+      await loadSupabaseTransactions(data.user.id);
+      setIsAuthenticated(true);
+      setView("dashboard");
+      setLoginError("");
+      return;
+    }
 
     const matchedUser = users.find(
       (user) => user.username === username && user.password === password,
@@ -518,13 +690,45 @@ export default function Home() {
     setEditingId(null);
   }
 
-  function saveTransaction(event: FormEvent<HTMLFormElement>) {
+  async function saveTransaction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const cleanDraft = {
       ...draft,
       amount: Math.max(1, Number(draft.amount) || 1),
       endDate: draft.recurrence === "recurring" ? draft.endDate : null,
     };
+
+    if (isSupabaseConfigured && supabase) {
+      if (modalMode === "edit" && editingId) {
+        const { data, error } = await supabase
+          .from("transactions")
+          .update(transactionToRow(cleanDraft, currentUser.id))
+          .eq("id", editingId)
+          .select("id, owner_id, type, amount, field, recurrence, date, end_date, notes")
+          .single<TransactionRow>();
+
+        if (!error && data) {
+          setTransactions((current) =>
+            current.map((transaction) =>
+              transaction.id === editingId ? rowToTransaction(data) : transaction,
+            ),
+          );
+        }
+      } else {
+        const { data, error } = await supabase
+          .from("transactions")
+          .insert(transactionToRow(cleanDraft, currentUser.id))
+          .select("id, owner_id, type, amount, field, recurrence, date, end_date, notes")
+          .single<TransactionRow>();
+
+        if (!error && data) {
+          setTransactions((current) => [...current, rowToTransaction(data)]);
+        }
+      }
+
+      closeModal();
+      return;
+    }
 
     if (modalMode === "edit" && editingId) {
       setTransactions((current) =>
@@ -544,10 +748,20 @@ export default function Home() {
     closeModal();
   }
 
-  function deleteTransaction() {
+  async function deleteTransaction() {
     if (!editingId) {
       return;
     }
+
+    if (isSupabaseConfigured && supabase) {
+      await supabase.from("transactions").delete().eq("id", editingId);
+      setTransactions((current) =>
+        current.filter((transaction) => transaction.id !== editingId),
+      );
+      closeModal();
+      return;
+    }
+
     setTransactions((current) =>
       current.filter((transaction) => transaction.id !== editingId),
     );
@@ -567,7 +781,7 @@ export default function Home() {
     setSelectedDates([]);
   }
 
-  function saveAccount(event: FormEvent<HTMLFormElement>) {
+  async function saveAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAccountMessage("");
     setAccountError("");
@@ -579,6 +793,81 @@ export default function Home() {
 
     if (!accountDraft.username.trim()) {
       setAccountError("Username cannot be empty.");
+      return;
+    }
+
+    if (isSupabaseConfigured && supabase) {
+      const usernameTaken = users.some(
+        (user) =>
+          user.id !== currentUser.id &&
+          user.username.toLowerCase() === accountDraft.username.trim().toLowerCase(),
+      );
+
+      if (usernameTaken) {
+        setAccountError("Username is already taken.");
+        return;
+      }
+
+      if (wantsPasswordChange) {
+        const { error: passwordCheckError } =
+          await supabase.auth.signInWithPassword({
+            email: currentUser.email,
+            password: accountDraft.oldPassword,
+          });
+
+        if (passwordCheckError) {
+          setAccountError("Old password is incorrect.");
+          return;
+        }
+
+        if (accountDraft.newPassword.length < 4) {
+          setAccountError("New password must be at least 4 characters.");
+          return;
+        }
+
+        if (accountDraft.newPassword !== accountDraft.confirmPassword) {
+          setAccountError("New passwords do not match.");
+          return;
+        }
+
+        const { error: updatePasswordError } = await supabase.auth.updateUser({
+          password: accountDraft.newPassword,
+        });
+
+        if (updatePasswordError) {
+          setAccountError(updatePasswordError.message);
+          return;
+        }
+      }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({
+          username: accountDraft.username.trim(),
+          email: accountDraft.email.trim(),
+        })
+        .eq("id", currentUser.id)
+        .select("id, username, email, role")
+        .single<ProfileRow>();
+
+      if (error || !data) {
+        setAccountError(error?.message || "Could not update account.");
+        return;
+      }
+
+      const updatedAccount = rowToAccount(data);
+      setUsers((current) =>
+        current.map((user) =>
+          user.id === updatedAccount.id ? updatedAccount : user,
+        ),
+      );
+      setAccountDraft((current) => ({
+        ...current,
+        oldPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      }));
+      setAccountMessage("Account details updated.");
       return;
     }
 
@@ -665,7 +954,7 @@ export default function Home() {
     setUserError("");
   }
 
-  function saveUser(event: FormEvent<HTMLFormElement>) {
+  async function saveUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setUserMessage("");
     setUserError("");
@@ -684,6 +973,114 @@ export default function Home() {
 
     if (!username) {
       setUserError("Username cannot be empty.");
+      return;
+    }
+
+    if (isSupabaseConfigured && supabase) {
+      if (!email) {
+        setUserError("Email is required for Supabase users.");
+        return;
+      }
+
+      if (
+        users.some(
+          (user) =>
+            user.id !== editingUserId &&
+            user.username.toLowerCase() === username.toLowerCase(),
+        )
+      ) {
+        setUserError("Username is already taken.");
+        return;
+      }
+
+      if (isEditing && editingUser) {
+        if (wantsPasswordChange) {
+          setUserError(
+            "Password changes for other users must be done through Supabase Auth.",
+          );
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("profiles")
+          .update({ username, email })
+          .eq("id", editingUser.id)
+          .select("id, username, email, role")
+          .single<ProfileRow>();
+
+        if (error || !data) {
+          setUserError(error?.message || "Could not update user.");
+          return;
+        }
+
+        setUsers((current) =>
+          current.map((user) =>
+            user.id === editingUser.id ? rowToAccount(data) : user,
+          ),
+        );
+        setUserMessage("User updated.");
+        closeUserModal();
+        return;
+      }
+
+      if (newUserDraft.password.length < 4) {
+        setUserError("Password must be at least 4 characters.");
+        return;
+      }
+
+      if (newUserDraft.password !== newUserDraft.confirmPassword) {
+        setUserError("Passwords do not match.");
+        return;
+      }
+
+      const previousSession = await supabase.auth.getSession();
+      const { data: signupData, error: signupError } =
+        await supabase.auth.signUp({
+          email,
+          password: newUserDraft.password,
+        });
+
+      if (
+        previousSession.data.session &&
+        signupData.session?.access_token !==
+          previousSession.data.session.access_token
+      ) {
+        await supabase.auth.setSession({
+          access_token: previousSession.data.session.access_token,
+          refresh_token: previousSession.data.session.refresh_token,
+        });
+      }
+
+      if (signupError || !signupData.user) {
+        setUserError(signupError?.message || "Could not create auth user.");
+        return;
+      }
+
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .insert({
+          id: signupData.user.id,
+          username,
+          email,
+          role: "user",
+        })
+        .select("id, username, email, role")
+        .single<ProfileRow>();
+
+      if (profileError || !profileData) {
+        setUserError(profileError?.message || "Could not create user profile.");
+        return;
+      }
+
+      setUsers((current) => [...current, rowToAccount(profileData)]);
+      setNewUserDraft({
+        username: "",
+        email: "",
+        password: "",
+        confirmPassword: "",
+      });
+      setUserMessage("User created.");
+      closeUserModal();
       return;
     }
 
@@ -759,7 +1156,7 @@ export default function Home() {
     closeUserModal();
   }
 
-  function confirmDeleteUser() {
+  async function confirmDeleteUser() {
     if (!deletingUserId) {
       return;
     }
@@ -770,9 +1167,32 @@ export default function Home() {
       return;
     }
 
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.rpc("admin_delete_user", {
+        target_user_id: deletingUserId,
+      });
+
+      if (error) {
+        setUserError(error.message);
+        setDeletingUserId(null);
+        return;
+      }
+    }
+
     setUsers((current) => current.filter((user) => user.id !== deletingUserId));
     setDeletingUserId(null);
     setUserMessage("User deleted.");
+  }
+
+  if (isLoading) {
+    return (
+      <main className="login-screen">
+        <section className="login-panel" aria-label="Loading">
+          <p className="eyebrow">Money Planner</p>
+          <h1>Loading</h1>
+        </section>
+      </main>
+    );
   }
 
   if (!isAuthenticated) {
@@ -783,8 +1203,11 @@ export default function Home() {
           <h1>Sign in</h1>
           <form onSubmit={handleLogin} className="login-form">
             <label>
-              Username
-              <input name="username" autoComplete="username" />
+              {isSupabaseConfigured ? "Email" : "Username"}
+              <input
+                name="username"
+                autoComplete={isSupabaseConfigured ? "email" : "username"}
+              />
             </label>
             <label>
               Password
@@ -837,7 +1260,10 @@ export default function Home() {
               </button>
               <button
                 className="ghost-button"
-                onClick={() => {
+                onClick={async () => {
+                  if (isSupabaseConfigured && supabase) {
+                    await supabase.auth.signOut();
+                  }
                   window.localStorage.removeItem(AUTH_KEY);
                   setIsAuthenticated(false);
                   setView("dashboard");
