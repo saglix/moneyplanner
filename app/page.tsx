@@ -82,11 +82,8 @@ const defaultAccount: Account = {
 };
 const today = startOfDay(new Date());
 const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-const defaultVisibleDayCount =
-  Math.round(
-    (addDays(today, 25).getTime() - currentMonthStart.getTime()) /
-      (1000 * 60 * 60 * 24),
-  ) + 1;
+const millisecondsPerDay = 1000 * 60 * 60 * 24;
+const defaultVisibleDayCount = getDefaultVisibleDayCount(currentMonthStart);
 
 const defaultDraft: Draft = {
   type: "income",
@@ -110,6 +107,19 @@ function addDays(date: Date, days: number) {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
   return next;
+}
+
+function getDefaultVisibleDayCount(startDate: Date) {
+  return Math.min(
+    90,
+    Math.max(
+      14,
+      Math.round(
+        (addDays(today, 25).getTime() - startDate.getTime()) /
+          millisecondsPerDay,
+      ) + 1,
+    ),
+  );
 }
 
 function toISODate(date: Date) {
@@ -591,9 +601,21 @@ export default function Home() {
     }
   }, [balanceAnchor]);
 
+  useEffect(() => {
+    const nextStartDate = balanceAnchor
+      ? parseISODate(balanceAnchor.date)
+      : currentMonthStart;
+    setVisibleDayCount(getDefaultVisibleDayCount(nextStartDate));
+    setSelectedDates([]);
+  }, [balanceAnchor]);
+
+  const timelineStartDate = useMemo(
+    () => (balanceAnchor ? parseISODate(balanceAnchor.date) : currentMonthStart),
+    [balanceAnchor],
+  );
   const visibleDates = useMemo(
-    () => makeRange(currentMonthStart, visibleDayCount),
-    [visibleDayCount],
+    () => makeRange(timelineStartDate, visibleDayCount),
+    [timelineStartDate, visibleDayCount],
   );
   const monthGroups = useMemo(() => {
     return visibleDates.reduce<Array<{ month: string; span: number }>>(
