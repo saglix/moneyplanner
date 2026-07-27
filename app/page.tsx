@@ -1720,15 +1720,6 @@ export default function Home() {
 
         {view === "dashboard" ? (
         <aside className="side-panel" aria-label="Summary and actions">
-          <div>
-            <p className="eyebrow">
-              {selectedDates.length ? "Selected dates" : "Visible range"}
-            </p>
-            <p className="muted">
-              {summary.count} transaction{summary.count === 1 ? "" : "s"}
-            </p>
-          </div>
-
           <div className="balance-card">
             <div className="balance-card-heading">
               <span className="balance-icon">
