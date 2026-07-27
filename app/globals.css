@@ -672,11 +672,6 @@ textarea:focus {
   text-transform: uppercase;
 }
 
-.summary-grid strong {
-  margin-bottom: 8px;
-  font-size: 20px;
-}
-
 .summary-value {
   margin: 0 0 8px;
   color: var(--foreground);

@@ -1749,9 +1749,9 @@ export default function Home() {
 
           <div className="summary-grid">
             <span>Income</span>
-            <strong className="positive">{currency(summary.income)}</strong>
+            <p className="summary-value positive">{currency(summary.income)}</p>
             <span>Outcome</span>
-            <strong className="negative">{currency(summary.outcome)}</strong>
+            <p className="summary-value negative">{currency(summary.outcome)}</p>
             <span>Summary</span>
             <p className="summary-value">{currency(summary.net)}</p>
           </div>
