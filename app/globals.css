@@ -60,7 +60,8 @@ button {
 .login-panel,
 .matrix-panel,
 .side-panel,
-.transaction-modal {
+.transaction-modal,
+.balance-modal {
   background: var(--panel);
   border: 1px solid rgba(17, 17, 17, 0.06);
   box-shadow: 0 24px 70px rgba(17, 17, 17, 0.08);
@@ -74,7 +75,8 @@ button {
 
 .login-panel h1,
 .topbar h1,
-.transaction-modal h2 {
+.transaction-modal h2,
+.balance-modal h2 {
   margin: 0;
   letter-spacing: 0;
 }
@@ -94,7 +96,8 @@ button {
 }
 
 .login-form,
-.transaction-form {
+.transaction-form,
+.balance-form {
   display: grid;
   gap: 16px;
   margin-top: 28px;
@@ -129,8 +132,10 @@ textarea:focus {
 
 .login-form button,
 .actions button,
+.balance-card button,
 .axis-controls button,
 .transaction-form footer button,
+.balance-form footer button,
 .floating-clear {
   min-height: 42px;
   border-radius: 8px;
@@ -672,6 +677,50 @@ textarea:focus {
   font-size: 20px;
 }
 
+.balance-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfbfa;
+  padding: 14px;
+}
+
+.balance-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.balance-card-heading .eyebrow {
+  margin: 0;
+}
+
+.balance-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.balance-card strong {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.balance-card .muted {
+  margin: 0;
+  line-height: 1.35;
+}
+
+.balance-card button {
+  width: 100%;
+  margin-top: 2px;
+}
+
 .positive {
   color: var(--green);
 }
@@ -718,7 +767,8 @@ textarea:focus {
   overflow: auto;
 }
 
-.transaction-modal {
+.transaction-modal,
+.balance-modal {
   width: min(680px, 100%);
   overflow: visible;
   border-radius: 8px;
@@ -726,11 +776,39 @@ textarea:focus {
 }
 
 .transaction-modal header,
-.user-modal header {
+.user-modal header,
+.balance-modal header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+}
+
+.balance-modal {
+  width: min(440px, 100%);
+}
+
+.balance-form {
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.balance-help {
+  margin: -2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.balance-form footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.balance-form footer button {
+  min-width: 118px;
+  padding: 0 18px;
 }
 
 .transaction-form {

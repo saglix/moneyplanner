@@ -21,8 +21,16 @@ create table if not exists public.transactions (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.balance_anchors (
+  owner_id uuid primary key references auth.users(id) on delete cascade,
+  amount numeric not null,
+  date date not null,
+  updated_at timestamptz not null default now()
+);
+
 alter table public.profiles enable row level security;
 alter table public.transactions enable row level security;
+alter table public.balance_anchors enable row level security;
 
 drop policy if exists "profiles are readable by signed in users" on public.profiles;
 create policy "profiles are readable by signed in users"
@@ -127,5 +135,30 @@ with check (owner_id = auth.uid());
 drop policy if exists "users delete their own transactions" on public.transactions;
 create policy "users delete their own transactions"
 on public.transactions for delete
+to authenticated
+using (owner_id = auth.uid());
+
+drop policy if exists "users read their own balance anchor" on public.balance_anchors;
+create policy "users read their own balance anchor"
+on public.balance_anchors for select
+to authenticated
+using (owner_id = auth.uid());
+
+drop policy if exists "users insert their own balance anchor" on public.balance_anchors;
+create policy "users insert their own balance anchor"
+on public.balance_anchors for insert
+to authenticated
+with check (owner_id = auth.uid());
+
+drop policy if exists "users update their own balance anchor" on public.balance_anchors;
+create policy "users update their own balance anchor"
+on public.balance_anchors for update
+to authenticated
+using (owner_id = auth.uid())
+with check (owner_id = auth.uid());
+
+drop policy if exists "users delete their own balance anchor" on public.balance_anchors;
+create policy "users delete their own balance anchor"
+on public.balance_anchors for delete
 to authenticated
 using (owner_id = auth.uid());

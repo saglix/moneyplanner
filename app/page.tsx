@@ -5,6 +5,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Landmark,
   Pencil,
   Trash2,
   Minus,
@@ -29,6 +30,11 @@ type Transaction = {
 };
 
 type Draft = Omit<Transaction, "id">;
+type BalanceAnchor = {
+  amount: number;
+  date: string;
+};
+
 type Account = {
   id: string;
   username: string;
@@ -56,7 +62,14 @@ type ProfileRow = {
   role: "admin" | "user";
 };
 
+type BalanceAnchorRow = {
+  owner_id: string;
+  amount: number;
+  date: string;
+};
+
 const STORAGE_KEY = "money-planner-transactions-v2";
+const BALANCE_ANCHOR_KEY = "money-planner-balance-anchor-v1";
 const AUTH_KEY = "money-planner-authenticated";
 const ACCOUNT_KEY = "money-planner-account";
 const USERS_KEY = "money-planner-users";
@@ -194,6 +207,49 @@ function summarize(transactions: Transaction[]) {
   };
 }
 
+function getTransactionsBetween(
+  transactions: Transaction[],
+  startDate: string,
+  endDate: string,
+) {
+  const start = parseISODate(startDate);
+  const end = parseISODate(endDate);
+  const items: Transaction[] = [];
+
+  if (end.getTime() < start.getTime()) {
+    return items;
+  }
+
+  for (
+    let cursor = startOfDay(start);
+    cursor.getTime() <= end.getTime();
+    cursor = addDays(cursor, 1)
+  ) {
+    items.push(...getTransactionsForDate(transactions, toISODate(cursor)));
+  }
+
+  return items;
+}
+
+function getProjectedBalance(
+  anchor: BalanceAnchor | null,
+  transactions: Transaction[],
+  targetDate: string,
+) {
+  if (!anchor) {
+    return null;
+  }
+
+  const firstProjectedDate = toISODate(addDays(parseISODate(anchor.date), 1));
+  const projectedTransactions = getTransactionsBetween(
+    transactions,
+    firstProjectedDate,
+    targetDate,
+  );
+
+  return anchor.amount + summarize(projectedTransactions).net;
+}
+
 function getDayTooltip(date: string, transactions: Transaction[]) {
   if (!transactions.length) {
     return `${formatDate(date)}\nNo transactions`;
@@ -258,6 +314,13 @@ function rowToAccount(row: ProfileRow): Account {
     email: row.email,
     password: "",
     role: row.role,
+  };
+}
+
+function rowToBalanceAnchor(row: BalanceAnchorRow): BalanceAnchor {
+  return {
+    amount: Number(row.amount),
+    date: row.date,
   };
 }
 
@@ -420,6 +483,15 @@ export default function Home() {
   );
   const [draft, setDraft] = useState<Draft>(defaultDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [balanceAnchor, setBalanceAnchor] = useState<BalanceAnchor | null>(
+    null,
+  );
+  const [balanceDraft, setBalanceDraft] = useState<BalanceAnchor>({
+    amount: 0,
+    date: toISODate(today),
+  });
+  const [balanceModalOpen, setBalanceModalOpen] = useState(false);
+  const [balanceError, setBalanceError] = useState("");
 
   useEffect(() => {
     async function boot() {
@@ -430,6 +502,7 @@ export default function Home() {
         if (authUser) {
           await loadSupabaseUser(authUser.id, authUser.email || "");
           await loadSupabaseTransactions(authUser.id);
+          await loadSupabaseBalanceAnchor(authUser.id);
           setIsAuthenticated(true);
         }
 
@@ -475,7 +548,9 @@ export default function Home() {
       }
 
       const stored = window.localStorage.getItem(STORAGE_KEY);
+      const storedAnchor = window.localStorage.getItem(BALANCE_ANCHOR_KEY);
       setTransactions(stored ? JSON.parse(stored) : seedTransactions);
+      setBalanceAnchor(storedAnchor ? JSON.parse(storedAnchor) : null);
       setIsLoading(false);
     }
 
@@ -493,6 +568,15 @@ export default function Home() {
       window.localStorage.setItem(USERS_KEY, JSON.stringify(users));
     }
   }, [users]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured && balanceAnchor) {
+      window.localStorage.setItem(
+        BALANCE_ANCHOR_KEY,
+        JSON.stringify(balanceAnchor),
+      );
+    }
+  }, [balanceAnchor]);
 
   const visibleDates = useMemo(
     () => makeRange(currentMonthStart, visibleDayCount),
@@ -535,6 +619,12 @@ export default function Home() {
     );
   }, [datesForSummary, filteredTransactions]);
   const summary = summarize(summaryTransactions);
+  const balanceTargetDate = [...datesForSummary].sort().at(-1) || toISODate(today);
+  const projectedBalance = getProjectedBalance(
+    balanceAnchor,
+    transactions,
+    balanceTargetDate,
+  );
   const maxAmount = Math.max(
     1,
     ...filteredTransactions.map((transaction) => transaction.amount),
@@ -612,6 +702,20 @@ export default function Home() {
     setTransactions(data ? (data as TransactionRow[]).map(rowToTransaction) : []);
   }
 
+  async function loadSupabaseBalanceAnchor(userId: string) {
+    if (!supabase) {
+      return;
+    }
+
+    const { data } = await supabase
+      .from("balance_anchors")
+      .select("owner_id, amount, date")
+      .eq("owner_id", userId)
+      .maybeSingle<BalanceAnchorRow>();
+
+    setBalanceAnchor(data ? rowToBalanceAnchor(data) : null);
+  }
+
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
@@ -631,6 +735,7 @@ export default function Home() {
 
       await loadSupabaseUser(data.user.id, data.user.email || username);
       await loadSupabaseTransactions(data.user.id);
+      await loadSupabaseBalanceAnchor(data.user.id);
       setIsAuthenticated(true);
       setView("dashboard");
       setLoginError("");
@@ -766,6 +871,57 @@ export default function Home() {
       current.filter((transaction) => transaction.id !== editingId),
     );
     closeModal();
+  }
+
+  function openBalanceModal() {
+    const nextAnchor = balanceAnchor || {
+      amount: 0,
+      date: toISODate(today),
+    };
+    setBalanceDraft(nextAnchor);
+    setBalanceError("");
+    setBalanceModalOpen(true);
+  }
+
+  async function saveBalanceAnchor(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBalanceError("");
+
+    const amount = Number(balanceDraft.amount);
+
+    if (!Number.isFinite(amount)) {
+      setBalanceError("Enter a valid balance.");
+      return;
+    }
+
+    const nextAnchor = {
+      amount,
+      date: balanceDraft.date || toISODate(today),
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from("balance_anchors")
+        .upsert({
+          owner_id: currentUser.id,
+          amount: nextAnchor.amount,
+          date: nextAnchor.date,
+        })
+        .select("owner_id, amount, date")
+        .single<BalanceAnchorRow>();
+
+      if (error || !data) {
+        setBalanceError(error?.message || "Could not save balance.");
+        return;
+      }
+
+      setBalanceAnchor(rowToBalanceAnchor(data));
+      setBalanceModalOpen(false);
+      return;
+    }
+
+    setBalanceAnchor(nextAnchor);
+    setBalanceModalOpen(false);
   }
 
   function toggleDate(date: string) {
@@ -1561,6 +1717,28 @@ export default function Home() {
             </p>
           </div>
 
+          <div className="balance-card">
+            <div className="balance-card-heading">
+              <span className="balance-icon">
+                <Landmark aria-hidden="true" size={16} strokeWidth={1.8} />
+              </span>
+              <p className="eyebrow">Balance Anchor</p>
+            </div>
+            <strong>
+              {projectedBalance === null ? "Not set" : currency(projectedBalance)}
+            </strong>
+            <p className="muted">
+              {balanceAnchor
+                ? `${currency(balanceAnchor.amount)} from ${formatDate(
+                    balanceAnchor.date,
+                  )} to ${formatDate(balanceTargetDate)}`
+                : "Set your current balance as the new starting point."}
+            </p>
+            <button type="button" onClick={openBalanceModal}>
+              {balanceAnchor ? "Update balance" : "Set balance"}
+            </button>
+          </div>
+
           <div className="summary-grid">
             <span>Income</span>
             <strong className="positive">{currency(summary.income)}</strong>
@@ -1617,6 +1795,72 @@ export default function Home() {
         <button className="floating-clear" onClick={() => setSelectedDates([])}>
           Deselect dates
         </button>
+      ) : null}
+
+      {balanceModalOpen ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="balance-modal" aria-label="Balance anchor form">
+            <header>
+              <div>
+                <p className="eyebrow">Balance Anchor</p>
+                <h2>Set starting balance</h2>
+              </div>
+              <button
+                className="icon-button"
+                onClick={() => setBalanceModalOpen(false)}
+                type="button"
+              >
+                x
+              </button>
+            </header>
+
+            <form className="balance-form" onSubmit={saveBalanceAnchor}>
+              <label className="amount-label">
+                Current balance in ₪
+                <input
+                  type="number"
+                  value={
+                    Number.isFinite(balanceDraft.amount)
+                      ? balanceDraft.amount
+                      : ""
+                  }
+                  onChange={(event) =>
+                    setBalanceDraft((current) => ({
+                      ...current,
+                      amount: Number(event.target.value),
+                    }))
+                  }
+                  required
+                />
+              </label>
+              <DatePicker
+                label="Balance date"
+                value={balanceDraft.date}
+                onChange={(value) =>
+                  setBalanceDraft((current) => ({
+                    ...current,
+                    date: value || toISODate(today),
+                  }))
+                }
+              />
+              <p className="balance-help">
+                Projections start after this date, so the same day is not counted
+                twice.
+              </p>
+              {balanceError ? <p className="form-error">{balanceError}</p> : null}
+              <footer>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setBalanceModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit">Save anchor</button>
+              </footer>
+            </form>
+          </section>
+        </div>
       ) : null}
 
       {modalMode !== "closed" ? (
