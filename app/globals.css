@@ -677,6 +677,13 @@ textarea:focus {
   font-size: 20px;
 }
 
+.summary-value {
+  margin: 0 0 8px;
+  color: var(--foreground);
+  font-size: 20px;
+  font-weight: 400;
+}
+
 .balance-card {
   display: grid;
   gap: 10px;

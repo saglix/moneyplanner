@@ -1753,7 +1753,7 @@ export default function Home() {
             <span>Outcome</span>
             <strong className="negative">{currency(summary.outcome)}</strong>
             <span>Summary</span>
-            <strong>{currency(summary.net)}</strong>
+            <p className="summary-value">{currency(summary.net)}</p>
           </div>
 
           <div className="actions">
