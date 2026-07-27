@@ -132,6 +132,19 @@ function formatDate(value: string) {
   }).format(parseISODate(value));
 }
 
+function formatShortDate(value: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+  }).format(parseISODate(value));
+}
+
+function leadingShekel(amount: number) {
+  return `₪${new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0,
+  }).format(amount)}`;
+}
+
 function getMonthTitle(date: Date) {
   return new Intl.DateTimeFormat("en-US", {
     month: "long",
@@ -1711,7 +1724,6 @@ export default function Home() {
             <p className="eyebrow">
               {selectedDates.length ? "Selected dates" : "Visible range"}
             </p>
-            <h2>{currency(summary.net)}</h2>
             <p className="muted">
               {summary.count} transaction{summary.count === 1 ? "" : "s"}
             </p>
@@ -1722,17 +1734,22 @@ export default function Home() {
               <span className="balance-icon">
                 <Landmark aria-hidden="true" size={16} strokeWidth={1.8} />
               </span>
-              <p className="eyebrow">Balance Anchor</p>
+              <p className="eyebrow">Balance</p>
             </div>
             <strong>
               {projectedBalance === null ? "Not set" : currency(projectedBalance)}
             </strong>
             <p className="muted">
-              {balanceAnchor
-                ? `${currency(balanceAnchor.amount)} from ${formatDate(
-                    balanceAnchor.date,
-                  )} to ${formatDate(balanceTargetDate)}`
-                : "Set your current balance as the new starting point."}
+              {balanceAnchor ? (
+                <>
+                  {leadingShekel(balanceAnchor.amount)}
+                  <br />
+                  {formatShortDate(balanceAnchor.date)} -{" "}
+                  {formatShortDate(balanceTargetDate)}
+                </>
+              ) : (
+                "Set your current balance as the new starting point."
+              )}
             </p>
             <button type="button" onClick={openBalanceModal}>
               {balanceAnchor ? "Update balance" : "Set balance"}
@@ -1744,6 +1761,10 @@ export default function Home() {
             <strong className="positive">{currency(summary.income)}</strong>
             <span>Outcome</span>
             <strong className="negative">{currency(summary.outcome)}</strong>
+            <span>Summary</span>
+            <strong className={summary.net >= 0 ? "positive" : "negative"}>
+              {currency(summary.net)}
+            </strong>
           </div>
 
           <div className="actions">
